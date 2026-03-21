@@ -5,6 +5,9 @@
 /tasks/*.db
 /tasks/*.db-shm
 /tasks/*.db-wal
+/problems/*.db
+/problems/*.db-shm
+/problems/*.db-wal
 
 # Optional root-level default DB names
 /notes.db
@@ -13,9 +16,14 @@
 /tasks.db
 /tasks.db-shm
 /tasks.db-wal
+/problems.db
+/problems.db-shm
+/problems.db-wal
 
 # Python cache
 /notes/__pycache__/
 /notes/*.pyc
 /tasks/__pycache__/
 /tasks/*.pyc
+/problems/__pycache__/
+/problems/*.pyc

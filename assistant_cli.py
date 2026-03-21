@@ -4,6 +4,7 @@
 Domains:
 - notes -> notes/skill_runner.py
 - tasks -> tasks/skill_runner.py
+- problems -> problems/skill_runner.py
 
 Examples:
   assistant domains
@@ -15,7 +16,9 @@ Examples:
 from __future__ import annotations
 
 import argparse
+import os
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -25,7 +28,72 @@ ROOT = Path(__file__).resolve().parent
 DOMAIN_ENTRYPOINTS = {
   "notes": ROOT / "notes" / "skill_runner.py",
   "tasks": ROOT / "tasks" / "skill_runner.py",
+  "problems": ROOT / "problems" / "skill_runner.py",
 }
+
+
+def default_data_dir() -> Path:
+  xdg_data_home = os.getenv("XDG_DATA_HOME")
+  if xdg_data_home:
+    return Path(xdg_data_home).expanduser() / "assistant"
+  return Path.home() / ".local" / "share" / "assistant"
+
+
+def migrate_project_dbs(*, move: bool, dry_run: bool) -> int:
+  data_dir = default_data_dir()
+  candidates = {
+    "notes": [ROOT / "notes" / "notes.db", ROOT / "notes.db"],
+    "tasks": [ROOT / "tasks" / "tasks.db", ROOT / "tasks.db"],
+    "problems": [ROOT / "problems" / "problems.db", ROOT / "problems.db"],
+  }
+
+  planned: list[tuple[Path, Path]] = []
+  for domain, sources in candidates.items():
+    dest = data_dir / f"{domain}.db"
+    for src in sources:
+      if src.exists():
+        planned.append((src, dest))
+        for ext in ("-shm", "-wal"):
+          side_src = Path(str(src) + ext)
+          if side_src.exists():
+            planned.append((side_src, Path(str(dest) + ext)))
+        break
+
+  if not planned:
+    print("No in-repo DBs found to migrate.")
+    return 0
+
+  print(f"Target data dir: {data_dir}")
+  print(f"Mode: {'move' if move else 'copy'}{' (dry-run)' if dry_run else ''}")
+
+  if not dry_run:
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+  migrated = 0
+  skipped = 0
+  planned_actions = 0
+  for src, dest in planned:
+    if dest.exists():
+      print(f"skip  {src.relative_to(ROOT)} -> {dest} (destination exists)")
+      skipped += 1
+      continue
+
+    print(f"{'move' if move else 'copy'}  {src.relative_to(ROOT)} -> {dest}")
+    planned_actions += 1
+    if dry_run:
+      continue
+
+    if move:
+      shutil.move(str(src), str(dest))
+    else:
+      shutil.copy2(src, dest)
+    migrated += 1
+
+  if dry_run:
+    print(f"Done. planned={planned_actions} skipped={skipped}")
+  else:
+    print(f"Done. migrated={migrated} skipped={skipped}")
+  return 0
 
 
 def run_domain(domain: str, args: list[str]) -> int:
@@ -60,6 +128,16 @@ def _chat_help() -> int:
   /tasks done [<task_id>|latest]
   /tasks snooze [<task_id>|latest] until <time phrase>
   /tasks history <task_id>
+
+  /problems <free text>
+  /problems add <text>
+  /problems list
+  /problems tree
+  /problems show <problem_id>
+  /problems done [<problem_id>|latest]
+  /problems history <problem_id>
+  /problems link <problem_id> <note|task|problem> <entity_id> [relation]
+  /problems unlink <problem_id> <note|task|problem> <entity_id> [relation]
 """
   print(msg)
   return 0
@@ -185,7 +263,98 @@ def _build_tasks_chat_args(tail: str, db: str | None, tz: str | None, pretty: bo
   return args + ["invoke", "--message", tail]
 
 
-def run_chat_command(text: str, db_notes: str | None, db_tasks: str | None, tz: str | None, pretty: bool) -> int:
+def _build_problems_chat_args(tail: str, db: str | None, tz: str | None, pretty: bool) -> list[str]:
+  tokens = shlex.split(tail)
+  common: list[str] = []
+  if db:
+    common.extend(["--db", db])
+  if tz:
+    common.extend(["--tz", tz])
+  if pretty:
+    common.append("--pretty")
+
+  if not tokens:
+    raise ValueError("Missing problems command text.")
+
+  verb = tokens[0].lower()
+
+  if verb == "list":
+    return ["list", *common]
+
+  if verb == "tree":
+    return ["tree", *common]
+
+  if verb == "history":
+    if len(tokens) < 2:
+      raise ValueError("/problems history requires <problem_id>")
+    return ["history", "--problem-id", tokens[1], *common]
+
+  if verb == "show":
+    if len(tokens) < 2:
+      raise ValueError("/problems show requires <problem_id>")
+    return ["show", "--problem-id", tokens[1], *common]
+
+  if verb == "link":
+    if len(tokens) < 4:
+      raise ValueError("/problems link requires <problem_id> <note|task|problem> <entity_id> [relation]")
+    relation = tokens[4] if len(tokens) >= 5 else "addresses"
+    return [
+      "link",
+      "--problem-id",
+      tokens[1],
+      "--entity-type",
+      tokens[2],
+      "--entity-id",
+      tokens[3],
+      "--relation",
+      relation,
+      *common,
+    ]
+
+  if verb == "unlink":
+    if len(tokens) < 4:
+      raise ValueError("/problems unlink requires <problem_id> <note|task|problem> <entity_id> [relation]")
+    cmd = [
+      "unlink",
+      "--problem-id",
+      tokens[1],
+      "--entity-type",
+      tokens[2],
+      "--entity-id",
+      tokens[3],
+      *common,
+    ]
+    if len(tokens) >= 5:
+      cmd.extend(["--relation", tokens[4]])
+    return cmd
+
+  if verb == "done":
+    problem_id = None
+    if len(tokens) >= 2 and tokens[1].lower() != "latest":
+      problem_id = tokens[1]
+    invoke = ["invoke", "--message", "solved", *common]
+    if problem_id:
+      invoke.extend(["--problem-id", problem_id])
+    return invoke
+
+  if verb == "add":
+    body = " ".join(tokens[1:]).strip()
+    if not body:
+      raise ValueError("/problems add requires problem text")
+    return ["invoke", "--message", body, *common]
+
+  # free text fallback
+  return ["invoke", "--message", tail, *common]
+
+
+def run_chat_command(
+  text: str,
+  db_notes: str | None,
+  db_tasks: str | None,
+  db_problems: str | None,
+  tz: str | None,
+  pretty: bool,
+) -> int:
   raw = text.strip()
   if raw in {"/help", "help", "/chat help"}:
     return _chat_help()
@@ -214,6 +383,12 @@ def run_chat_command(text: str, db_notes: str | None, db_tasks: str | None, tz: 
       args = _build_tasks_chat_args(tail, db_tasks, tz, pretty)
       return run_domain("tasks", args)
 
+    if domain == "problems":
+      if not tail:
+        raise ValueError("/problems requires text or a subcommand")
+      args = _build_problems_chat_args(tail, db_problems, tz, pretty)
+      return run_domain("problems", args)
+
     if domain in {"chat", "commands"}:
       return _chat_help()
 
@@ -230,6 +405,10 @@ def main(argv: list[str]) -> int:
 
   sub.add_parser("domains", help="List registered domains")
 
+  migrate = sub.add_parser("migrate-dbs", help="Migrate in-repo DBs to ~/.local/share/assistant (or $XDG_DATA_HOME)")
+  migrate.add_argument("--copy", action="store_true", help="Copy instead of move")
+  migrate.add_argument("--dry-run", action="store_true", help="Show planned actions without writing")
+
   route = sub.add_parser("run", help="Run a domain command via router")
   route.add_argument("domain", choices=sorted(DOMAIN_ENTRYPOINTS.keys()))
   route.add_argument("args", nargs=argparse.REMAINDER, help="Arguments passed to domain skill runner")
@@ -242,6 +421,7 @@ def main(argv: list[str]) -> int:
   chat.add_argument("text", help="Slash command text")
   chat.add_argument("--db-notes", default=None, help="Default notes DB path for /notes")
   chat.add_argument("--db-tasks", default=None, help="Default tasks DB path for /tasks")
+  chat.add_argument("--db-problems", default=None, help="Default problems DB path for /problems")
   chat.add_argument("--tz", default=None, help="IANA timezone")
   chat.add_argument("--pretty", action="store_true", help="Pretty JSON output from domain skill")
 
@@ -252,8 +432,11 @@ def main(argv: list[str]) -> int:
       print(f"{name}\t{path.relative_to(ROOT)}")
     return 0
 
+  if args.cmd == "migrate-dbs":
+    return migrate_project_dbs(move=not args.copy, dry_run=args.dry_run)
+
   if args.cmd == "chat":
-    return run_chat_command(args.text, args.db_notes, args.db_tasks, args.tz, args.pretty)
+    return run_chat_command(args.text, args.db_notes, args.db_tasks, args.db_problems, args.tz, args.pretty)
 
   if args.cmd == "run":
     passthrough = args.args
