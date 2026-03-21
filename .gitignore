@@ -1,0 +1,21 @@
+# Local SQLite databases for domain skill prototypes
+/notes/*.db
+/notes/*.db-shm
+/notes/*.db-wal
+/tasks/*.db
+/tasks/*.db-shm
+/tasks/*.db-wal
+
+# Optional root-level default DB names
+/notes.db
+/notes.db-shm
+/notes.db-wal
+/tasks.db
+/tasks.db-shm
+/tasks.db-wal
+
+# Python cache
+/notes/__pycache__/
+/notes/*.pyc
+/tasks/__pycache__/
+/tasks/*.pyc

@@ -1,0 +1,87 @@
+{
+  "name": "problems_skill",
+  "version": "0.1.0",
+  "description": "Local nested problem management skill with SQLite persistence and event history.",
+  "entrypoint": "skill_runner.py",
+  "language": "python",
+  "commands": [
+    {
+      "name": "init",
+      "args": {
+        "--db": {"type": "string", "required": false, "default": "problems.db"},
+        "--tz": {"type": "string", "required": false}
+      },
+      "output": {"ok": "boolean", "action": "init", "db": "string"}
+    },
+    {
+      "name": "invoke",
+      "args": {
+        "--db": {"type": "string", "required": false, "default": "problems.db"},
+        "--tz": {"type": "string", "required": false},
+        "--message": {"type": "string", "required": true},
+        "--problem-id": {"type": "string", "required": false},
+        "--parent-problem-id": {"type": "string", "required": false},
+        "--pretty": {"type": "boolean", "required": false, "default": false}
+      },
+      "output": {
+        "ok": "boolean",
+        "action": "string",
+        "intent": "string",
+        "confidence": "number",
+        "human_message": "string",
+        "problem": "object|null",
+        "data": "array|null",
+        "error": "string|null"
+      }
+    },
+    {
+      "name": "list",
+      "args": {
+        "--db": {"type": "string", "required": false, "default": "problems.db"},
+        "--tz": {"type": "string", "required": false},
+        "--pretty": {"type": "boolean", "required": false, "default": false}
+      },
+      "output": {"ok": "boolean", "action": "list_problems", "count": "number", "data": "array"}
+    },
+    {
+      "name": "tree",
+      "args": {
+        "--db": {"type": "string", "required": false, "default": "problems.db"},
+        "--tz": {"type": "string", "required": false},
+        "--pretty": {"type": "boolean", "required": false, "default": false}
+      },
+      "output": {"ok": "boolean", "action": "tree_problems", "count": "number", "data": "array"}
+    },
+    {
+      "name": "show",
+      "args": {
+        "--db": {"type": "string", "required": false, "default": "problems.db"},
+        "--problem-id": {"type": "string", "required": true},
+        "--pretty": {"type": "boolean", "required": false, "default": false}
+      },
+      "output": {"ok": "boolean", "action": "show", "problem": "object|null", "links": "array|null"}
+    },
+    {
+      "name": "link",
+      "args": {
+        "--db": {"type": "string", "required": false, "default": "problems.db"},
+        "--problem-id": {"type": "string", "required": true},
+        "--entity-type": {"type": "string", "required": true},
+        "--entity-id": {"type": "string", "required": true},
+        "--relation": {"type": "string", "required": false, "default": "addresses"},
+        "--pretty": {"type": "boolean", "required": false, "default": false}
+      },
+      "output": {"ok": "boolean", "action": "link", "problem_id": "string", "link": "object|null"}
+    },
+    {
+      "name": "history",
+      "args": {
+        "--db": {"type": "string", "required": false, "default": "problems.db"},
+        "--problem-id": {"type": "string", "required": true},
+        "--pretty": {"type": "boolean", "required": false, "default": false}
+      },
+      "output": {"ok": "boolean", "action": "history", "problem": "object|null", "events": "array|null"}
+    }
+  ],
+  "intents": ["create_problem", "list_problems", "tree_problems", "solve_problem"]
+}

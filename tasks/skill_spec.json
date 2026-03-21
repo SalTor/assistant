@@ -1,0 +1,56 @@
+{
+  "name": "tasks_skill",
+  "version": "0.1.0",
+  "description": "Local task management skill with SQLite persistence and event history.",
+  "entrypoint": "skill_runner.py",
+  "language": "python",
+  "commands": [
+    {
+      "name": "init",
+      "args": {
+        "--db": {"type": "string", "required": false, "default": "tasks.db"},
+        "--tz": {"type": "string", "required": false}
+      },
+      "output": {"ok": "boolean", "action": "init", "db": "string"}
+    },
+    {
+      "name": "invoke",
+      "args": {
+        "--db": {"type": "string", "required": false, "default": "tasks.db"},
+        "--tz": {"type": "string", "required": false},
+        "--message": {"type": "string", "required": true},
+        "--task-id": {"type": "string", "required": false},
+        "--pretty": {"type": "boolean", "required": false, "default": false}
+      },
+      "output": {
+        "ok": "boolean",
+        "action": "string",
+        "intent": "string",
+        "confidence": "number",
+        "human_message": "string",
+        "task": "object|null",
+        "data": "array|null",
+        "error": "string|null"
+      }
+    },
+    {
+      "name": "list",
+      "args": {
+        "--db": {"type": "string", "required": false, "default": "tasks.db"},
+        "--tz": {"type": "string", "required": false},
+        "--pretty": {"type": "boolean", "required": false, "default": false}
+      },
+      "output": {"ok": "boolean", "action": "list_tasks", "count": "number", "data": "array"}
+    },
+    {
+      "name": "history",
+      "args": {
+        "--db": {"type": "string", "required": false, "default": "tasks.db"},
+        "--task-id": {"type": "string", "required": true},
+        "--pretty": {"type": "boolean", "required": false, "default": false}
+      },
+      "output": {"ok": "boolean", "action": "history", "task": "object|null", "events": "array|null"}
+    }
+  ],
+  "intents": ["create_task", "list_tasks", "snooze_task", "complete_task"]
+}

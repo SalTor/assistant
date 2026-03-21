@@ -1,0 +1,146 @@
+{
+  "name": "notes_skill",
+  "version": "0.1.0",
+  "description": "Local notes and follow-up management skill with SQLite persistence and event history.",
+  "entrypoint": "skill_runner.py",
+  "language": "python",
+  "commands": [
+    {
+      "name": "init",
+      "description": "Initialize SQLite schema.",
+      "args": {
+        "--db": {
+          "type": "string",
+          "required": false,
+          "default": "notes.db",
+          "description": "Path to SQLite database file."
+        },
+        "--tz": {
+          "type": "string",
+          "required": false,
+          "description": "IANA timezone (e.g. America/New_York)."
+        }
+      },
+      "output": {
+        "ok": "boolean",
+        "action": "init",
+        "db": "string"
+      }
+    },
+    {
+      "name": "invoke",
+      "description": "Run natural-language message through notes intent parser and apply action.",
+      "args": {
+        "--db": {
+          "type": "string",
+          "required": false,
+          "default": "notes.db"
+        },
+        "--tz": {
+          "type": "string",
+          "required": false
+        },
+        "--message": {
+          "type": "string",
+          "required": true,
+          "description": "Natural language user message."
+        },
+        "--note-id": {
+          "type": "string",
+          "required": false,
+          "description": "Optional target note id. If omitted, latest actionable note may be used for mutate intents."
+        },
+        "--pretty": {
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      },
+      "output": {
+        "ok": "boolean",
+        "action": "string",
+        "intent": "string",
+        "confidence": "number",
+        "human_message": "string",
+        "note": "object|null",
+        "data": "array|null",
+        "error": "string|null",
+        "message": "string|null"
+      }
+    },
+    {
+      "name": "list",
+      "description": "List follow-up-worthy notes (open or due snoozed).",
+      "args": {
+        "--db": {
+          "type": "string",
+          "required": false,
+          "default": "notes.db"
+        },
+        "--tz": {
+          "type": "string",
+          "required": false
+        },
+        "--pretty": {
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      },
+      "output": {
+        "ok": "boolean",
+        "action": "list_followups",
+        "count": "number",
+        "data": "array"
+      }
+    },
+    {
+      "name": "history",
+      "description": "Fetch note state and full event history.",
+      "args": {
+        "--db": {
+          "type": "string",
+          "required": false,
+          "default": "notes.db"
+        },
+        "--tz": {
+          "type": "string",
+          "required": false
+        },
+        "--note-id": {
+          "type": "string",
+          "required": true
+        },
+        "--pretty": {
+          "type": "boolean",
+          "required": false,
+          "default": false
+        }
+      },
+      "output": {
+        "ok": "boolean",
+        "action": "history",
+        "note": "object|null",
+        "events": "array|null",
+        "error": "string|null"
+      }
+    }
+  ],
+  "intents": [
+    "create_note",
+    "list_followups",
+    "snooze_note",
+    "complete_note",
+    "edit_note"
+  ],
+  "note_object_schema": {
+    "id": "string",
+    "body": "string",
+    "status": "active|archived|null",
+    "followup_state": "open|snoozed|done|null",
+    "followup_after": "ISO-8601 string|null",
+    "priority": "number|null",
+    "created_at": "ISO-8601 string|null",
+    "updated_at": "ISO-8601 string|null"
+  }
+}
