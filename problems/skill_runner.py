@@ -169,6 +169,9 @@ def main(argv: list[str]) -> int:
   sub.add_parser("list", help="List open problems", parents=[common])
   sub.add_parser("tree", help="List full problem tree", parents=[common])
 
+  delete_p = sub.add_parser("delete", help="Soft-delete a problem", parents=[common])
+  delete_p.add_argument("--problem-id", required=True)
+
   show_p = sub.add_parser("show", help="Get problem details and links", parents=[common])
   show_p.add_argument("--problem-id", required=True, help="Problem id")
 
@@ -212,6 +215,17 @@ def main(argv: list[str]) -> int:
           "action": "show",
           "problem": problem,
           "links": fetch_links(conn, args.problem_id),
+        }
+    elif args.cmd == "delete":
+      if fetch_problem(conn, args.problem_id) is None:
+        out = {"ok": False, "action": "delete", "error": "problem_not_found", "problem_id": args.problem_id}
+      else:
+        core.soft_delete_problem(conn, args.problem_id, "cli_delete", tz)
+        out = {
+          "ok": True,
+          "action": "delete",
+          "problem": fetch_problem(conn, args.problem_id),
+          "human_message": "Problem soft-deleted.",
         }
     elif args.cmd == "link":
       if fetch_problem(conn, args.problem_id) is None:

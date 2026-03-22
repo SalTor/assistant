@@ -163,6 +163,7 @@ def list_all_problems(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """
     SELECT id, title, statement, parent_id, status, created_at, updated_at
     FROM problems
+    WHERE status != 'deleted'
     ORDER BY created_at ASC
     """
   ).fetchall()
@@ -204,6 +205,20 @@ def solve_problem(conn: sqlite3.Connection, problem_id: str, source_message: str
     problem_id=problem_id,
     event_type="solved",
     event_text="Problem marked solved",
+    payload={"source_message": source_message},
+    tz=tz,
+  )
+  conn.commit()
+
+
+def soft_delete_problem(conn: sqlite3.Connection, problem_id: str, source_message: str, tz: ZoneInfo) -> None:
+  ts = now_iso(tz)
+  conn.execute("UPDATE problems SET status = 'deleted', updated_at = ? WHERE id = ?", (ts, problem_id))
+  add_event(
+    conn,
+    problem_id=problem_id,
+    event_type="deleted",
+    event_text="Problem soft-deleted",
     payload={"source_message": source_message},
     tz=tz,
   )

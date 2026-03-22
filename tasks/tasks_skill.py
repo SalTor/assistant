@@ -130,6 +130,13 @@ def complete_task(conn: sqlite3.Connection, task_id: str, source: str, tz: ZoneI
   conn.commit()
 
 
+def soft_delete_task(conn: sqlite3.Connection, task_id: str, source: str, tz: ZoneInfo) -> None:
+  ts = now_iso(tz)
+  conn.execute("UPDATE tasks SET status = 'deleted', updated_at = ? WHERE id = ?", (ts, task_id))
+  add_event(conn, task_id=task_id, event_type="deleted", event_text="Task soft-deleted", payload={"source_message": source}, tz=tz)
+  conn.commit()
+
+
 def snooze_task(conn: sqlite3.Connection, task_id: str, when_text: str, due_at: datetime, tz: ZoneInfo) -> None:
   ts = now_iso(tz)
   conn.execute(

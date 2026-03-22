@@ -235,25 +235,25 @@ class AssistantTUI:
     self.input_buf = ""
     self.refresh_data()
 
-  def _complete_selected(self) -> None:
+  def _soft_delete_selected(self) -> None:
     if self.focus == "notes" and self.notes:
       target = self.notes[self.note_index].item_id
-      code, _, msg = self._run_cli(["notes", "invoke", "--db", self.db_notes, "--note-id", target, "--message", "done"])
-      self.status = ("Marked note done. " if code == 0 else "Failed to mark note. ") + msg
+      code, _, msg = self._run_cli(["notes", "delete", "--db", self.db_notes, "--note-id", target])
+      self.status = ("Soft-deleted note. " if code == 0 else "Failed to delete note. ") + msg
       self.refresh_data()
       return
 
     if self.focus == "tasks" and self.tasks:
       target = self.tasks[self.task_index].item_id
-      code, _, msg = self._run_cli(["tasks", "invoke", "--db", self.db_tasks, "--task-id", target, "--message", "done"])
-      self.status = ("Marked task done. " if code == 0 else "Failed to mark task. ") + msg
+      code, _, msg = self._run_cli(["tasks", "delete", "--db", self.db_tasks, "--task-id", target])
+      self.status = ("Soft-deleted task. " if code == 0 else "Failed to delete task. ") + msg
       self.refresh_data()
       return
 
     if self.focus == "problems" and self.problems:
       target = self.problems[self.problem_index].item_id
-      code, _, msg = self._run_cli(["problems", "invoke", "--db", self.db_problems, "--problem-id", target, "--message", "solved"])
-      self.status = ("Marked problem solved. " if code == 0 else "Failed to solve problem. ") + msg
+      code, _, msg = self._run_cli(["problems", "delete", "--db", self.db_problems, "--problem-id", target])
+      self.status = ("Soft-deleted problem. " if code == 0 else "Failed to delete problem. ") + msg
       self.refresh_data()
       return
 
@@ -572,7 +572,7 @@ class AssistantTUI:
     if self.pending_d:
       if ch == ord("d"):
         self.pending_d = False
-        self._complete_selected()
+        self._soft_delete_selected()
         return True
       self.pending_d = False
 
@@ -696,7 +696,7 @@ class AssistantTUI:
     if ch == ord("d"):
       if self.focus in {"notes", "tasks", "problems"}:
         self.pending_d = True
-        self.status = "Press d again to mark selected item done"
+        self.status = "Press d again to soft-delete selected item"
       return True
 
     return True
@@ -787,7 +787,7 @@ class AssistantTUI:
       "  A      in problems: add sub-problem under selection",
       "  Enter  in problems: open selected problem detail",
       "  L      in notes/tasks: open link picker",
-      "  dd     mark selected item done/solved",
+      "  dd     soft-delete selected item",
       "",
       "In add mode:",
       "  Enter  submit",

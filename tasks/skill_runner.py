@@ -148,6 +148,8 @@ def main(argv: list[str]) -> int:
   invoke_p.add_argument("--message", required=True)
   invoke_p.add_argument("--task-id", default=None)
   sub.add_parser("list", parents=[common], help="List actionable tasks")
+  delete_p = sub.add_parser("delete", parents=[common], help="Soft-delete a task")
+  delete_p.add_argument("--task-id", required=True)
   history_p = sub.add_parser("history", parents=[common], help="Get task and event history")
   history_p.add_argument("--task-id", required=True)
 
@@ -165,6 +167,13 @@ def main(argv: list[str]) -> int:
       out = {"ok": True, "action": "list_tasks", "count": len(rows), "data": [row_to_task(r) for r in rows]}
     elif args.cmd == "invoke":
       out = invoke_message(conn, args.message, args.task_id, tz)
+    elif args.cmd == "delete":
+      task = fetch_task(conn, args.task_id)
+      if task is None:
+        out = {"ok": False, "action": "delete", "error": "task_not_found", "task_id": args.task_id}
+      else:
+        core.soft_delete_task(conn, args.task_id, "cli_delete", tz)
+        out = {"ok": True, "action": "delete", "task": fetch_task(conn, args.task_id), "human_message": "Task soft-deleted."}
     elif args.cmd == "history":
       task = fetch_task(conn, args.task_id)
       if task is None:

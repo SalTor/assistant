@@ -189,6 +189,27 @@ def mark_done(conn: sqlite3.Connection, note_id: str, message: str, tz: ZoneInfo
   conn.commit()
 
 
+def soft_delete_note(conn: sqlite3.Connection, note_id: str, source: str, tz: ZoneInfo) -> None:
+  ts = now_iso(tz)
+  conn.execute(
+    """
+    UPDATE notes
+    SET status = 'deleted', followup_state = 'done', updated_at = ?
+    WHERE id = ?
+    """,
+    (ts, note_id),
+  )
+  add_event(
+    conn,
+    note_id=note_id,
+    event_type="deleted",
+    event_text="Soft-deleted note",
+    payload={"source_message": source},
+    tz=tz,
+  )
+  conn.commit()
+
+
 def snooze_note(conn: sqlite3.Connection, note_id: str, when_text: str, dt: datetime, tz: ZoneInfo) -> None:
   ts = now_iso(tz)
   conn.execute(

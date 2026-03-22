@@ -189,6 +189,9 @@ def main(argv: list[str]) -> int:
   history_p = sub.add_parser("history", help="Get note and event history", parents=[common])
   history_p.add_argument("--note-id", required=True, help="Note id")
 
+  delete_p = sub.add_parser("delete", help="Soft-delete a note", parents=[common])
+  delete_p.add_argument("--note-id", required=True, help="Note id")
+
   sub.add_parser("list", help="List follow-up-worthy notes", parents=[common])
 
   args = parser.parse_args(argv)
@@ -226,6 +229,13 @@ def main(argv: list[str]) -> int:
           "note": note,
           "events": fetch_events(conn, args.note_id),
         }
+    elif args.cmd == "delete":
+      note = fetch_note(conn, args.note_id)
+      if note is None:
+        out = {"ok": False, "action": "delete", "error": "note_not_found", "note_id": args.note_id}
+      else:
+        core.soft_delete_note(conn, args.note_id, "cli_delete", tz)
+        out = {"ok": True, "action": "delete", "note": fetch_note(conn, args.note_id), "human_message": "Note soft-deleted."}
     else:
       out = {"ok": False, "error": "unsupported_command"}
 
