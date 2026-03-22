@@ -70,6 +70,7 @@ class AssistantTUI:
     self.notes: list[UiItem] = []
     self.tasks: list[UiItem] = []
     self.problems: list[UiItem] = []
+    self.panel_boxes: dict[str, tuple[int, int, int, int]] = {}
     self.note_index = 0
     self.task_index = 0
     self.problem_index = 0
@@ -82,6 +83,11 @@ class AssistantTUI:
     curses.curs_set(0)
     self.stdscr.nodelay(False)
     self.stdscr.keypad(True)
+    try:
+      curses.mousemask(curses.ALL_MOUSE_EVENTS | curses.REPORT_MOUSE_POSITION)
+      curses.mouseinterval(0)
+    except Exception:
+      pass
     self._setup_colors()
     self._ensure_db()
     self.refresh_data()
@@ -465,6 +471,23 @@ class AssistantTUI:
     self.link_source_type = None
     self.link_source_id = None
 
+  def _handle_mouse(self) -> bool:
+    try:
+      _, mx, my, _, bstate = curses.getmouse()
+    except Exception:
+      return True
+
+    if not (bstate & (curses.BUTTON1_PRESSED | curses.BUTTON1_CLICKED | curses.BUTTON1_RELEASED)):
+      return True
+
+    for panel, (y, x, h, w) in self.panel_boxes.items():
+      if y <= my < y + h and x <= mx < x + w:
+        self.focus = panel
+        self.status = f"{panel.capitalize()} focus"
+        return True
+
+    return True
+
   def _handle_key(self, ch: int) -> bool:
     if self.show_problem_detail:
       if ch in (27, ord("q"), 10, 13):
@@ -543,6 +566,9 @@ class AssistantTUI:
         self._complete_selected()
         return True
       self.pending_d = False
+
+    if ch == curses.KEY_MOUSE:
+      return self._handle_mouse()
 
     if ch == ord("q"):
       return False
@@ -941,6 +967,12 @@ class AssistantTUI:
     notes_focused = self.focus == "notes"
     tasks_focused = self.focus == "tasks"
     problems_focused = self.focus == "problems"
+
+    self.panel_boxes = {
+      "notes": (top, x1, panel_h, panel_w),
+      "tasks": (top, x2, panel_h, panel_w),
+      "problems": (top, x3, panel_h, panel_w),
+    }
 
     self._draw_box(top, x1, panel_h, panel_w, "Notes (n)", notes_focused)
     self._draw_box(top, x2, panel_h, panel_w, "Tasks (t)", tasks_focused)
