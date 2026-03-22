@@ -225,6 +225,20 @@ def soft_delete_problem(conn: sqlite3.Connection, problem_id: str, source_messag
   conn.commit()
 
 
+def undelete_problem(conn: sqlite3.Connection, problem_id: str, source_message: str, tz: ZoneInfo) -> None:
+  ts = now_iso(tz)
+  conn.execute("UPDATE problems SET status = 'open', updated_at = ? WHERE id = ?", (ts, problem_id))
+  add_event(
+    conn,
+    problem_id=problem_id,
+    event_type="undeleted",
+    event_text="Problem restored",
+    payload={"source_message": source_message},
+    tz=tz,
+  )
+  conn.commit()
+
+
 def link_entity(
   conn: sqlite3.Connection,
   *,

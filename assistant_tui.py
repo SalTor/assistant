@@ -11,6 +11,7 @@ import subprocess
 import sys
 import textwrap
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,15 @@ class UiItem:
   item_id: str
   text: str
   status: str = ""
+
+
+@dataclass
+class OperationEntry:
+  ts: str
+  action: str
+  domain: str
+  item_id: str
+  detail: str
 
 
 def _hex_to_curses_rgb(hex_color: str) -> tuple[int, int, int]:
@@ -71,6 +81,10 @@ class AssistantTUI:
     self.tasks: list[UiItem] = []
     self.problems: list[UiItem] = []
     self.panel_boxes: dict[str, tuple[int, int, int, int]] = {}
+    self.operation_log: list[OperationEntry] = []
+    self.show_operation_log = False
+    self.operation_log_index = 0
+    self.operation_log_path = _default_data_dir() / "tui_operations.log"
     self.note_index = 0
     self.task_index = 0
     self.problem_index = 0
@@ -90,6 +104,7 @@ class AssistantTUI:
       pass
     self._setup_colors()
     self._ensure_db()
+    self._load_operation_log()
     self.refresh_data()
 
     while True:
@@ -169,6 +184,36 @@ class AssistantTUI:
 
     return proc.returncode, payload, msg
 
+  def _load_operation_log(self) -> None:
+    self.operation_log = []
+    try:
+      if not self.operation_log_path.exists():
+        return
+      for raw in self.operation_log_path.read_text(encoding="utf-8").splitlines()[-500:]:
+        parts = raw.split("\t", 4)
+        if len(parts) != 5:
+          continue
+        ts, action, domain, item_id, detail = parts
+        self.operation_log.append(OperationEntry(ts=ts, action=action, domain=domain, item_id=item_id, detail=detail))
+      if self.operation_log:
+        self.operation_log.reverse()  # newest first
+        self.operation_log_index = 0
+    except Exception:
+      self.operation_log = []
+
+  def _record_operation(self, action: str, domain: str, item_id: str, detail: str) -> None:
+    ts = datetime.now().strftime("%H:%M:%S")
+    safe_detail = (detail or "").replace("\t", " ").replace("\n", " ").strip()
+    entry = OperationEntry(ts=ts, action=action, domain=domain, item_id=item_id, detail=safe_detail)
+    self.operation_log.insert(0, entry)
+    self.operation_log_index = 0
+    try:
+      self.operation_log_path.parent.mkdir(parents=True, exist_ok=True)
+      with self.operation_log_path.open("a", encoding="utf-8") as f:
+        f.write(f"{ts}\t{action}\t{domain}\t{item_id}\t{safe_detail}\n")
+    except Exception:
+      pass
+
   def _ensure_db(self) -> None:
     for domain, db in (("notes", self.db_notes), ("tasks", self.db_tasks), ("problems", self.db_problems)):
       self._run_cli([domain, "init", "--db", db])
@@ -215,19 +260,28 @@ class AssistantTUI:
       return
 
     if self.input_mode == "add_note":
-      code, _, msg = self._run_cli(["notes", "invoke", "--db", self.db_notes, "--message", text])
+      code, payload, msg = self._run_cli(["notes", "invoke", "--db", self.db_notes, "--message", text])
       self.status = ("Added note. " if code == 0 else "Failed adding note. ") + msg
+      if code == 0 and isinstance(payload, dict) and isinstance(payload.get("note"), dict):
+        nid = str(payload["note"].get("id", "?"))
+        self._record_operation("create", "note", nid, text)
       self.focus = "notes"
     elif self.input_mode == "add_task":
-      code, _, msg = self._run_cli(["tasks", "invoke", "--db", self.db_tasks, "--message", text])
+      code, payload, msg = self._run_cli(["tasks", "invoke", "--db", self.db_tasks, "--message", text])
       self.status = ("Added task. " if code == 0 else "Failed adding task. ") + msg
+      if code == 0 and isinstance(payload, dict) and isinstance(payload.get("task"), dict):
+        tid = str(payload["task"].get("id", "?"))
+        self._record_operation("create", "task", tid, text)
       self.focus = "tasks"
     elif self.input_mode == "add_problem":
       args = ["problems", "invoke", "--db", self.db_problems, "--message", text]
       if self.input_parent_problem_id:
         args.extend(["--parent-problem-id", self.input_parent_problem_id])
-      code, _, msg = self._run_cli(args)
+      code, payload, msg = self._run_cli(args)
       self.status = ("Added problem. " if code == 0 else "Failed adding problem. ") + msg
+      if code == 0 and isinstance(payload, dict) and isinstance(payload.get("problem"), dict):
+        pid = str(payload["problem"].get("id", "?"))
+        self._record_operation("create", "problem", pid, text)
       self.focus = "problems"
 
     self.input_mode = None
@@ -240,6 +294,8 @@ class AssistantTUI:
       target = self.notes[self.note_index].item_id
       code, _, msg = self._run_cli(["notes", "delete", "--db", self.db_notes, "--note-id", target])
       self.status = ("Soft-deleted note. " if code == 0 else "Failed to delete note. ") + msg
+      if code == 0:
+        self._record_operation("delete", "note", target, msg)
       self.refresh_data()
       return
 
@@ -247,6 +303,8 @@ class AssistantTUI:
       target = self.tasks[self.task_index].item_id
       code, _, msg = self._run_cli(["tasks", "delete", "--db", self.db_tasks, "--task-id", target])
       self.status = ("Soft-deleted task. " if code == 0 else "Failed to delete task. ") + msg
+      if code == 0:
+        self._record_operation("delete", "task", target, msg)
       self.refresh_data()
       return
 
@@ -254,6 +312,8 @@ class AssistantTUI:
       target = self.problems[self.problem_index].item_id
       code, _, msg = self._run_cli(["problems", "delete", "--db", self.db_problems, "--problem-id", target])
       self.status = ("Soft-deleted problem. " if code == 0 else "Failed to delete problem. ") + msg
+      if code == 0:
+        self._record_operation("delete", "problem", target, msg)
       self.refresh_data()
       return
 
@@ -380,6 +440,7 @@ class AssistantTUI:
       return
 
     self.status = f"Unlinked {target['entity_type']} {target['entity_id'][:4]} [{target['relation']}]"
+    self._record_operation("unlink", target["entity_type"], target["entity_id"], f"from {pid[:4]} [{target['relation']}]")
     if self._load_problem_detail(pid):
       new_links = self._ordered_detail_links()
       if new_links:
@@ -467,9 +528,38 @@ class AssistantTUI:
     )
     prefix = f"Linked ({relation}) to [{pid[:4]}]. " if code == 0 else f"Failed link ({relation}). "
     self.status = prefix + msg
+    if code == 0:
+      self._record_operation("link", self.link_source_type or "?", self.link_source_id or "?", f"to {pid[:4]} [{relation}]")
     self.show_link_picker = False
     self.link_source_type = None
     self.link_source_id = None
+
+  def _undelete_operation_entry(self) -> None:
+    if not self.operation_log:
+      self.status = "Operation log is empty"
+      return
+    self.operation_log_index = max(0, min(self.operation_log_index, len(self.operation_log) - 1))
+    entry = self.operation_log[self.operation_log_index]
+    if entry.action != "delete":
+      self.status = "Selected operation is not a delete"
+      return
+
+    if entry.domain == "note":
+      code, _, msg = self._run_cli(["notes", "undelete", "--db", self.db_notes, "--note-id", entry.item_id])
+    elif entry.domain == "task":
+      code, _, msg = self._run_cli(["tasks", "undelete", "--db", self.db_tasks, "--task-id", entry.item_id])
+    elif entry.domain == "problem":
+      code, _, msg = self._run_cli(["problems", "undelete", "--db", self.db_problems, "--problem-id", entry.item_id])
+    else:
+      self.status = "Unknown domain for undelete"
+      return
+
+    if code == 0:
+      self.status = f"Restored {entry.domain} {entry.item_id[:4]}"
+      self._record_operation("undelete", entry.domain, entry.item_id, msg)
+      self.refresh_data()
+    else:
+      self.status = f"Failed restore: {msg}"
 
   def _handle_mouse(self) -> bool:
     try:
@@ -538,6 +628,23 @@ class AssistantTUI:
         return True
       return True
 
+    if self.show_operation_log:
+      if ch in (27, ord("q"), ord("o")):
+        self.show_operation_log = False
+        return True
+      if ch in (ord("j"), curses.KEY_DOWN):
+        if self.operation_log:
+          self.operation_log_index = min(self.operation_log_index + 1, len(self.operation_log) - 1)
+        return True
+      if ch in (ord("k"), curses.KEY_UP):
+        if self.operation_log:
+          self.operation_log_index = max(self.operation_log_index - 1, 0)
+        return True
+      if ch == ord("u"):
+        self._undelete_operation_entry()
+        return True
+      return True
+
     if self.show_help:
       if ch in (ord("?"), 27, ord("q")):
         self.show_help = False
@@ -583,6 +690,9 @@ class AssistantTUI:
       return False
     if ch == ord("?"):
       self.show_help = True
+      return True
+    if ch == ord("o"):
+      self.show_operation_log = True
       return True
     if ch in (ord("r"),):
       self.refresh_data()
@@ -774,6 +884,7 @@ class AssistantTUI:
       "Global:",
       "  ?      toggle this help",
       "  q      quit",
+      "  o      operation log",
       "  r      refresh notes/tasks/problems",
       "  n/t/p  focus notes/tasks/problems panel",
       "  j      from dashboard -> notes",
@@ -789,6 +900,11 @@ class AssistantTUI:
       "  L      in notes/tasks: open link picker",
       "  dd     soft-delete selected item",
       "",
+      "In operation log:",
+      "  j / k  navigate operations",
+      "  u      undelete selected delete op",
+      "  o/ESC/q close",
+      "",
       "In add mode:",
       "  Enter  submit",
       "  Ctrl-W delete previous word",
@@ -803,6 +919,40 @@ class AssistantTUI:
 
     for i, line in enumerate(lines[: box_h - 2]):
       self._safe_add(y + 1 + i, x + 2, line, curses.color_pair(1))
+
+  def _draw_operation_log(self) -> None:
+    h, w = self.stdscr.getmaxyx()
+    box_h = min(max(12, h - 6), h - 4)
+    box_w = min(max(60, w - 8), w - 4)
+    y = (h - box_h) // 2
+    x = (w - box_w) // 2
+
+    self._draw_box(y, x, box_h, box_w, "Operation log", True)
+    for row in range(y + 1, y + box_h - 1):
+      self._safe_add(row, x + 1, " " * max(1, box_w - 2), curses.color_pair(1))
+
+    if not self.operation_log:
+      self._safe_add(y + 1, x + 2, "(empty)", curses.color_pair(6))
+      self._safe_add(y + box_h - 2, x + 2, "o/esc/q close", curses.color_pair(6))
+      return
+
+    self.operation_log_index = max(0, min(self.operation_log_index, len(self.operation_log) - 1))
+    list_h = max(1, box_h - 3)
+    start = 0
+    if self.operation_log_index >= list_h:
+      start = self.operation_log_index - list_h + 1
+    visible = self.operation_log[start : start + list_h]
+
+    for i, e in enumerate(visible):
+      idx = start + i
+      short_id = (e.item_id or "?")[:4]
+      line = textwrap.shorten(f"[{e.ts}] {e.action} {e.domain} {short_id} — {e.detail}", width=max(16, box_w - 4), placeholder="…")
+      attr = curses.color_pair(1)
+      if idx == self.operation_log_index:
+        attr |= curses.A_REVERSE | curses.A_BOLD
+      self._safe_add(y + 1 + i, x + 2, line, attr)
+
+    self._safe_add(y + box_h - 2, x + 2, "j/k navigate  u undelete selected delete  o/esc/q close", curses.color_pair(6))
 
   def _draw_problem_detail(self) -> None:
     if not self.problem_detail:
@@ -1013,6 +1163,9 @@ class AssistantTUI:
 
     if self.show_help:
       self._draw_help()
+
+    if self.show_operation_log:
+      self._draw_operation_log()
 
     if self.show_problem_detail:
       self._draw_problem_detail()

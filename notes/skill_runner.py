@@ -192,6 +192,9 @@ def main(argv: list[str]) -> int:
   delete_p = sub.add_parser("delete", help="Soft-delete a note", parents=[common])
   delete_p.add_argument("--note-id", required=True, help="Note id")
 
+  undelete_p = sub.add_parser("undelete", help="Restore a soft-deleted note", parents=[common])
+  undelete_p.add_argument("--note-id", required=True, help="Note id")
+
   sub.add_parser("list", help="List follow-up-worthy notes", parents=[common])
 
   args = parser.parse_args(argv)
@@ -236,6 +239,13 @@ def main(argv: list[str]) -> int:
       else:
         core.soft_delete_note(conn, args.note_id, "cli_delete", tz)
         out = {"ok": True, "action": "delete", "note": fetch_note(conn, args.note_id), "human_message": "Note soft-deleted."}
+    elif args.cmd == "undelete":
+      note = fetch_note(conn, args.note_id)
+      if note is None:
+        out = {"ok": False, "action": "undelete", "error": "note_not_found", "note_id": args.note_id}
+      else:
+        core.undelete_note(conn, args.note_id, "cli_undelete", tz)
+        out = {"ok": True, "action": "undelete", "note": fetch_note(conn, args.note_id), "human_message": "Note restored."}
     else:
       out = {"ok": False, "error": "unsupported_command"}
 

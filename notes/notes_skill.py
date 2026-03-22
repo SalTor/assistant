@@ -210,6 +210,27 @@ def soft_delete_note(conn: sqlite3.Connection, note_id: str, source: str, tz: Zo
   conn.commit()
 
 
+def undelete_note(conn: sqlite3.Connection, note_id: str, source: str, tz: ZoneInfo) -> None:
+  ts = now_iso(tz)
+  conn.execute(
+    """
+    UPDATE notes
+    SET status = 'active', followup_state = 'open', updated_at = ?
+    WHERE id = ?
+    """,
+    (ts, note_id),
+  )
+  add_event(
+    conn,
+    note_id=note_id,
+    event_type="undeleted",
+    event_text="Note restored",
+    payload={"source_message": source},
+    tz=tz,
+  )
+  conn.commit()
+
+
 def snooze_note(conn: sqlite3.Connection, note_id: str, when_text: str, dt: datetime, tz: ZoneInfo) -> None:
   ts = now_iso(tz)
   conn.execute(

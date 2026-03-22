@@ -137,6 +137,13 @@ def soft_delete_task(conn: sqlite3.Connection, task_id: str, source: str, tz: Zo
   conn.commit()
 
 
+def undelete_task(conn: sqlite3.Connection, task_id: str, source: str, tz: ZoneInfo) -> None:
+  ts = now_iso(tz)
+  conn.execute("UPDATE tasks SET status = 'open', updated_at = ? WHERE id = ?", (ts, task_id))
+  add_event(conn, task_id=task_id, event_type="undeleted", event_text="Task restored", payload={"source_message": source}, tz=tz)
+  conn.commit()
+
+
 def snooze_task(conn: sqlite3.Connection, task_id: str, when_text: str, due_at: datetime, tz: ZoneInfo) -> None:
   ts = now_iso(tz)
   conn.execute(

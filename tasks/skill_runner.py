@@ -150,6 +150,8 @@ def main(argv: list[str]) -> int:
   sub.add_parser("list", parents=[common], help="List actionable tasks")
   delete_p = sub.add_parser("delete", parents=[common], help="Soft-delete a task")
   delete_p.add_argument("--task-id", required=True)
+  undelete_p = sub.add_parser("undelete", parents=[common], help="Restore a soft-deleted task")
+  undelete_p.add_argument("--task-id", required=True)
   history_p = sub.add_parser("history", parents=[common], help="Get task and event history")
   history_p.add_argument("--task-id", required=True)
 
@@ -174,6 +176,13 @@ def main(argv: list[str]) -> int:
       else:
         core.soft_delete_task(conn, args.task_id, "cli_delete", tz)
         out = {"ok": True, "action": "delete", "task": fetch_task(conn, args.task_id), "human_message": "Task soft-deleted."}
+    elif args.cmd == "undelete":
+      task = fetch_task(conn, args.task_id)
+      if task is None:
+        out = {"ok": False, "action": "undelete", "error": "task_not_found", "task_id": args.task_id}
+      else:
+        core.undelete_task(conn, args.task_id, "cli_undelete", tz)
+        out = {"ok": True, "action": "undelete", "task": fetch_task(conn, args.task_id), "human_message": "Task restored."}
     elif args.cmd == "history":
       task = fetch_task(conn, args.task_id)
       if task is None:
