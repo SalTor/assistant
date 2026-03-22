@@ -553,6 +553,15 @@ class AssistantTUI:
       if ch in (curses.KEY_BACKSPACE, 127, 8):
         self.input_buf = self.input_buf[:-1]
         return True
+      if ch == 21:  # Ctrl-U
+        self.input_buf = ""
+        return True
+      if ch == 23:  # Ctrl-W
+        buf = self.input_buf.rstrip()
+        while buf and not buf[-1].isspace():
+          buf = buf[:-1]
+        self.input_buf = buf.rstrip()
+        return True
       if ch in (curses.KEY_ENTER, 10, 13):
         self._add_current()
         return True
@@ -782,6 +791,8 @@ class AssistantTUI:
       "",
       "In add mode:",
       "  Enter  submit",
+      "  Ctrl-W delete previous word",
+      "  Ctrl-U clear prompt",
       "  ESC    cancel",
       "",
       "In problem detail:",
