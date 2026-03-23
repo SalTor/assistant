@@ -5,6 +5,7 @@ Domains:
 - notes -> notes/skill_runner.py
 - tasks -> tasks/skill_runner.py
 - problems -> problems/skill_runner.py
+- project_manager -> project_manager/skill_runner.py
 
 Examples:
   assistant domains
@@ -29,6 +30,7 @@ DOMAIN_ENTRYPOINTS = {
   "notes": ROOT / "notes" / "skill_runner.py",
   "tasks": ROOT / "tasks" / "skill_runner.py",
   "problems": ROOT / "problems" / "skill_runner.py",
+  "project_manager": ROOT / "project_manager" / "skill_runner.py",
 }
 
 

@@ -27,3 +27,5 @@
 /tasks/*.pyc
 /problems/__pycache__/
 /problems/*.pyc
+/project_manager/__pycache__/
+/project_manager/*.pyc

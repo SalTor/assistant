@@ -1,0 +1,38 @@
+{
+  "name": "project_manager_skill",
+  "version": "0.1.0",
+  "description": "Reviews JJ stack work and binds progress to problems via machine-readable trailers.",
+  "entrypoint": "skill_runner.py",
+  "language": "python",
+  "commands": [
+    {
+      "name": "review",
+      "args": {
+        "--revset": {"type": "string", "required": false, "default": "trunk()..@"},
+        "--db-problems": {"type": "string", "required": false},
+        "--apply": {"type": "boolean", "required": false, "default": false},
+        "--create-problem": {"type": "boolean", "required": false, "default": false},
+        "--pretty": {"type": "boolean", "required": false, "default": false}
+      },
+      "output": {
+        "ok": "boolean",
+        "action": "review",
+        "status": "string",
+        "bound_problem_ids": "array|null",
+        "suggested_problem_statement": "string|null",
+        "suggested_trailer": "string|null",
+        "progress_logged": "boolean|null"
+      }
+    },
+    {
+      "name": "trailer",
+      "args": {
+        "--problem-id": {"type": "string", "required": true},
+        "--relation": {"type": "string", "required": false, "default": "addresses"},
+        "--progress": {"type": "string", "required": false},
+        "--pretty": {"type": "boolean", "required": false, "default": false}
+      },
+      "output": {"ok": "boolean", "action": "trailer_template", "trailer": "string"}
+    }
+  ]
+}
