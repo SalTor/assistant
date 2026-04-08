@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 import textwrap
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -49,6 +50,46 @@ def _hex_to_curses_rgb(hex_color: str) -> tuple[int, int, int]:
   g = int(hex_color[2:4], 16)
   b = int(hex_color[4:6], 16)
   return (round(r / 255 * 1000), round(g / 255 * 1000), round(b / 255 * 1000))
+
+
+def _char_display_width(ch: str) -> int:
+  if not ch:
+    return 0
+  if unicodedata.combining(ch):
+    return 0
+  if unicodedata.east_asian_width(ch) in {"W", "F"}:
+    return 2
+  return 1
+
+
+def _display_width(text: str) -> int:
+  return sum(_char_display_width(ch) for ch in text)
+
+
+def _truncate_display(text: str, width: int, placeholder: str = "…") -> str:
+  if width <= 0:
+    return ""
+  if _display_width(text) <= width:
+    return text
+
+  placeholder_w = _display_width(placeholder)
+  if placeholder_w >= width:
+    return placeholder[:width]
+
+  remaining = width - placeholder_w
+  out: list[str] = []
+  used = 0
+  for ch in text:
+    ch_w = _char_display_width(ch)
+    if used + ch_w > remaining:
+      break
+    out.append(ch)
+    used += ch_w
+  return "".join(out) + placeholder
+
+
+def _pad_display(text: str, width: int) -> str:
+  return text + (" " * max(0, width - _display_width(text)))
 
 
 class AssistantTUI:
@@ -860,12 +901,12 @@ class AssistantTUI:
       indent = text[:indent_len]
       body = text[indent_len:]
       base = f"{indent}[{short_id}] {body}"
-      max_w = max(8, w - 3)
-      line = base if len(base) <= max_w else (base[: max_w - 1] + "…")
+      max_w = max(8, w - 2)
+      line = _truncate_display(base, max_w)
       attr = curses.color_pair(1)
       if focused and idx == selected:
         attr |= curses.A_REVERSE | curses.A_BOLD
-      self._safe_add(row, x + 1, line.ljust(max(1, w - 2)), attr)
+      self._safe_add(row, x + 1, _pad_display(line, max(1, w - 2)), attr)
 
   def _draw_help(self) -> None:
     h, w = self.stdscr.getmaxyx()
@@ -946,7 +987,7 @@ class AssistantTUI:
     for i, e in enumerate(visible):
       idx = start + i
       short_id = (e.item_id or "?")[:4]
-      line = textwrap.shorten(f"[{e.ts}] {e.action} {e.domain} {short_id} — {e.detail}", width=max(16, box_w - 4), placeholder="…")
+      line = _truncate_display(f"[{e.ts}] {e.action} {e.domain} {short_id} — {e.detail}", width=max(16, box_w - 4))
       attr = curses.color_pair(1)
       if idx == self.operation_log_index:
         attr |= curses.A_REVERSE | curses.A_BOLD
@@ -988,7 +1029,7 @@ class AssistantTUI:
     parent_id = str(parent_id_raw).strip() if parent_id_raw else ""
     if parent_id:
       parent_title = self._resolve_link_label("problem", parent_id)
-      parent_line = textwrap.shorten(f"[{parent_id[:4]}] {parent_title}", width=max(20, box_w - 8), placeholder="…")
+      parent_line = _truncate_display(f"[{parent_id[:4]}] {parent_title}", width=max(20, box_w - 8))
       lines.append("")
       lines.append("Belongs to:")
       lines.append(f"  - {parent_line}")
@@ -999,7 +1040,7 @@ class AssistantTUI:
       lines.append("Sub-problems:")
       for depth, cid, ctitle, cstatus in descendants:
         indent = "  " * max(0, depth)
-        item = textwrap.shorten(f"{indent}[{cid[:4]}] {ctitle} ({cstatus})", width=max(20, box_w - 8), placeholder="…")
+        item = _truncate_display(f"{indent}[{cid[:4]}] {ctitle} ({cstatus})", width=max(20, box_w - 8))
         lines.append(f"  - {item}")
 
     relation_order = ["addresses", "evidence", "critique", "depends_on"]
@@ -1010,7 +1051,7 @@ class AssistantTUI:
         et = str(link.get("entity_type", "?"))
         eid = str(link.get("entity_id", "?"))
         label = self._resolve_link_label(et, eid)
-        item = textwrap.shorten(f"{et} {eid[:4]} — {label}", width=max(20, box_w - 8), placeholder="…")
+        item = _truncate_display(f"{et} {eid[:4]} — {label}", width=max(20, box_w - 8))
         grouped.setdefault(rel, []).append((item, et, eid, rel))
 
     selectable: list[tuple[int, str, str, str]] = []  # line_idx, entity_type, entity_id, relation
@@ -1073,7 +1114,7 @@ class AssistantTUI:
     src_header = f"Source: {src_type} {src_id[:4]}"
     self._safe_add(y + 1, x + 2, src_header, curses.color_pair(1) | curses.A_BOLD)
     if src_label:
-      src_body = textwrap.shorten(src_label, width=max(16, box_w - 6), placeholder="…")
+      src_body = _truncate_display(src_label, width=max(16, box_w - 6))
       self._safe_add(y + 2, x + 2, f"  {src_body}", curses.color_pair(1))
     self._safe_add(y + 3, x + 2, "j/k select problem  h/l select relation  Enter link", curses.color_pair(6))
 
@@ -1099,7 +1140,7 @@ class AssistantTUI:
         if idx == self.link_problem_index:
           attr |= curses.A_REVERSE | curses.A_BOLD
         short_id = (p.item_id or "?")[:4]
-        line = textwrap.shorten(f"[{short_id}] {p.text}", width=max(12, box_w - 8), placeholder="…")
+        line = _truncate_display(f"[{short_id}] {p.text}", width=max(12, box_w - 8))
         self._safe_add(y + 6 + i, x + 4, line.ljust(max(1, box_w - 8)), attr)
 
     self._safe_add(y + box_h - 2, x + 2, "Esc/q: cancel", curses.color_pair(6))
@@ -1119,29 +1160,38 @@ class AssistantTUI:
     panel_h = max(6, bottom - top + 1)
     panel_gap = 2
     total_inner = max(30, w - 4)
-    panel_w = max(18, (total_inner - (2 * panel_gap)) // 3)
+    usable_w = max(18 * 3, total_inner - (2 * panel_gap))
+    base_panel_w = 18
+    extra_w = max(0, usable_w - (base_panel_w * 3))
+
+    # Problems usually need more horizontal space because the tree indentation
+    # consumes part of the visible width. Give the extra width to the panels
+    # unevenly so long problem titles do not ellipsize as aggressively.
+    notes_w = base_panel_w + (extra_w // 4)
+    tasks_w = base_panel_w + (extra_w // 4)
+    problems_w = base_panel_w + (extra_w - (extra_w // 4) * 2)
 
     x1 = 2
-    x2 = x1 + panel_w + panel_gap
-    x3 = x2 + panel_w + panel_gap
+    x2 = x1 + notes_w + panel_gap
+    x3 = x2 + tasks_w + panel_gap
 
     notes_focused = self.focus == "notes"
     tasks_focused = self.focus == "tasks"
     problems_focused = self.focus == "problems"
 
     self.panel_boxes = {
-      "notes": (top, x1, panel_h, panel_w),
-      "tasks": (top, x2, panel_h, panel_w),
-      "problems": (top, x3, panel_h, panel_w),
+      "notes": (top, x1, panel_h, notes_w),
+      "tasks": (top, x2, panel_h, tasks_w),
+      "problems": (top, x3, panel_h, problems_w),
     }
 
-    self._draw_box(top, x1, panel_h, panel_w, "Notes (n)", notes_focused)
-    self._draw_box(top, x2, panel_h, panel_w, "Tasks (t)", tasks_focused)
-    self._draw_box(top, x3, panel_h, panel_w, "Problems (p)", problems_focused)
+    self._draw_box(top, x1, panel_h, notes_w, "Notes (n)", notes_focused)
+    self._draw_box(top, x2, panel_h, tasks_w, "Tasks (t)", tasks_focused)
+    self._draw_box(top, x3, panel_h, problems_w, "Problems (p)", problems_focused)
 
-    self._render_items(top, x1, panel_h, panel_w, self.notes, self.note_index, notes_focused)
-    self._render_items(top, x2, panel_h, panel_w, self.tasks, self.task_index, tasks_focused)
-    self._render_items(top, x3, panel_h, panel_w, self.problems, self.problem_index, problems_focused)
+    self._render_items(top, x1, panel_h, notes_w, self.notes, self.note_index, notes_focused)
+    self._render_items(top, x2, panel_h, tasks_w, self.tasks, self.task_index, tasks_focused)
+    self._render_items(top, x3, panel_h, problems_w, self.problems, self.problem_index, problems_focused)
 
     status_attr = curses.color_pair(5)
     if "failed" in self.status.lower() or "issue" in self.status.lower():
