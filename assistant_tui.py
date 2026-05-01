@@ -110,6 +110,10 @@ class AssistantTUI:
     self.show_problem_detail = False
     self.problem_detail: dict[str, Any] | None = None
     self.problem_detail_link_index = 0
+    self.show_note_detail = False
+    self.note_detail: dict[str, Any] | None = None
+    self.show_task_detail = False
+    self.task_detail: dict[str, Any] | None = None
     self.show_link_picker = False
     self.link_source_type: str | None = None
     self.link_source_id: str | None = None
@@ -525,6 +529,40 @@ class AssistantTUI:
     self.problem_detail_link_index = 0
     self.show_problem_detail = True
 
+  def _load_note_detail(self, note_id: str) -> bool:
+    code, payload, msg = self._run_cli(["notes", "history", "--db", self.db_notes, "--note-id", note_id])
+    if code != 0 or not isinstance(payload, dict) or payload.get("ok") is False:
+      self.status = f"Failed loading note detail: {msg}"
+      return False
+    self.note_detail = payload
+    return True
+
+  def _open_note_detail(self) -> None:
+    if not self.notes:
+      self.status = "No note selected"
+      return
+    nid = self.notes[self.note_index].item_id
+    if not self._load_note_detail(nid):
+      return
+    self.show_note_detail = True
+
+  def _load_task_detail(self, task_id: str) -> bool:
+    code, payload, msg = self._run_cli(["tasks", "history", "--db", self.db_tasks, "--task-id", task_id])
+    if code != 0 or not isinstance(payload, dict) or payload.get("ok") is False:
+      self.status = f"Failed loading task detail: {msg}"
+      return False
+    self.task_detail = payload
+    return True
+
+  def _open_task_detail(self) -> None:
+    if not self.tasks:
+      self.status = "No task selected"
+      return
+    tid = self.tasks[self.task_index].item_id
+    if not self._load_task_detail(tid):
+      return
+    self.show_task_detail = True
+
   def _open_link_picker(self) -> None:
     if not self.problems:
       self.status = "No problems available to link against"
@@ -638,6 +676,20 @@ class AssistantTUI:
         return True
       if ch == ord("u"):
         self._unlink_selected_detail_link()
+        return True
+      return True
+
+    if self.show_note_detail:
+      if ch in (27, ord("q"), 10, 13):
+        self.show_note_detail = False
+        self.note_detail = None
+        return True
+      return True
+
+    if self.show_task_detail:
+      if ch in (27, ord("q"), 10, 13):
+        self.show_task_detail = False
+        self.task_detail = None
         return True
       return True
 
@@ -836,9 +888,16 @@ class AssistantTUI:
           self.status = "No problem selected; adding root problem"
       return True
 
-    if ch in (10, 13) and self.focus == "problems":
-      self._open_problem_detail()
-      return True
+    if ch in (10, 13):
+      if self.focus == "problems":
+        self._open_problem_detail()
+        return True
+      if self.focus == "notes":
+        self._open_note_detail()
+        return True
+      if self.focus == "tasks":
+        self._open_task_detail()
+        return True
 
     if ch == ord("L"):
       self._open_link_picker()
@@ -937,7 +996,7 @@ class AssistantTUI:
       "  j / k  move selection down/up",
       "  a      add item in focused panel",
       "  A      in problems: add sub-problem under selection",
-      "  Enter  in problems: open selected problem detail",
+      "  Enter  open detail for selected note/task/problem",
       "  L      in notes/tasks: open link picker",
       "  dd     soft-delete selected item",
       "",
@@ -955,6 +1014,9 @@ class AssistantTUI:
       "In problem detail:",
       "  j / k  navigate linked items",
       "  u      unlink selected item",
+      "  Enter/ESC/q close",
+      "",
+      "In note/task detail:",
       "  Enter/ESC/q close",
     ]
 
@@ -1097,6 +1159,92 @@ class AssistantTUI:
         attr |= curses.A_REVERSE | curses.A_BOLD
       self._safe_add(y + 1 + i, x + 2, line, attr)
 
+  def _draw_item_detail(self, payload: dict[str, Any] | None, kind: str) -> None:
+    if not payload:
+      return
+    h, w = self.stdscr.getmaxyx()
+    box_h = min(max(12, h - 6), h - 4)
+    box_w = min(max(50, w - 8), w - 4)
+    y = (h - box_h) // 2
+    x = (w - box_w) // 2
+
+    title_label = "Note detail" if kind == "note" else "Task detail"
+    self._draw_box(y, x, box_h, box_w, title_label, True)
+    for row in range(y + 1, y + box_h - 1):
+      self._safe_add(row, x + 1, " " * max(1, box_w - 2), curses.color_pair(1))
+
+    item = payload.get(kind) if isinstance(payload, dict) else None
+    if not isinstance(item, dict):
+      self._safe_add(y + 1, x + 2, f"No {kind} data", curses.color_pair(7))
+      return
+
+    iid = str(item.get("id", "?"))
+    status = str(item.get("status") or "")
+    priority = item.get("priority")
+    created_at = str(item.get("created_at") or "")
+    updated_at = str(item.get("updated_at") or "")
+
+    if kind == "note":
+      heading_text = str(item.get("body") or "")
+      header = f"[{iid[:4]}] note ({status})" if status else f"[{iid[:4]}] note"
+    else:
+      heading_text = str(item.get("title") or "")
+      header = f"[{iid[:4]}] {heading_text} ({status})" if status else f"[{iid[:4]}] {heading_text}"
+
+    wrap_width = max(12, box_w - 6)
+
+    lines: list[str] = []
+    lines.append(_truncate_display(header, width=max(12, box_w - 4)))
+
+    if kind == "note":
+      lines.append("body:")
+      for s in textwrap.wrap(heading_text, width=wrap_width) or [""]:
+        lines.append(f"  {s}")
+    else:
+      details = str(item.get("details") or "")
+      if details:
+        lines.append("details:")
+        for s in textwrap.wrap(details, width=wrap_width) or [""]:
+          lines.append(f"  {s}")
+
+    lines.append("")
+    if priority is not None:
+      lines.append(f"priority: {priority}")
+    if kind == "note":
+      followup_state = item.get("followup_state")
+      followup_after = item.get("followup_after")
+      if followup_state:
+        lines.append(f"followup: {followup_state}")
+      if followup_after:
+        lines.append(f"followup after: {followup_after}")
+    else:
+      due_at = item.get("due_at")
+      if due_at:
+        lines.append(f"due: {due_at}")
+    if created_at:
+      lines.append(f"created: {created_at}")
+    if updated_at and updated_at != created_at:
+      lines.append(f"updated: {updated_at}")
+
+    events = payload.get("events") if isinstance(payload, dict) else None
+    if isinstance(events, list) and events:
+      lines.append("")
+      lines.append("Events:")
+      for e in events:
+        if not isinstance(e, dict):
+          continue
+        ts = str(e.get("created_at") or "")
+        text = str(e.get("event_text") or e.get("event_type") or "")
+        line = _truncate_display(f"  - [{ts}] {text}", width=max(20, box_w - 4))
+        lines.append(line)
+
+    lines.append("")
+    lines.append("Enter/Esc/q close")
+
+    max_lines = box_h - 2
+    for i, line in enumerate(lines[:max_lines]):
+      self._safe_add(y + 1 + i, x + 2, line, curses.color_pair(1))
+
   def _draw_link_picker(self) -> None:
     h, w = self.stdscr.getmaxyx()
     box_h = min(max(14, h - 8), h - 4)
@@ -1219,6 +1367,12 @@ class AssistantTUI:
 
     if self.show_problem_detail:
       self._draw_problem_detail()
+
+    if self.show_note_detail:
+      self._draw_item_detail(self.note_detail, "note")
+
+    if self.show_task_detail:
+      self._draw_item_detail(self.task_detail, "task")
 
     if self.show_link_picker:
       self._draw_link_picker()
