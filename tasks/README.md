@@ -18,3 +18,12 @@ assistant tasks invoke --db ~/.local/share/assistant/tasks.db --pretty --message
 assistant tasks invoke --db ~/.local/share/assistant/tasks.db --pretty --message "Postpone this until after q3 ends"
 assistant tasks list --db ~/.local/share/assistant/tasks.db --pretty
 ```
+
+## Supported features
+
+- Create task (default fallback intent)
+- List actionable tasks
+- Snooze/postpone task
+- Mark task done
+- Soft-delete / undelete task
+- Edit task title + details (TUI: press `e` on a focused task; opens `$EDITOR`)

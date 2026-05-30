@@ -284,6 +284,26 @@ func InvokeTasks(s *store.Store, message, taskID string) map[string]any {
 		base["human_message"] = fmt.Sprintf("Marked task %s as done.", target)
 		return base
 
+	case "edit_task":
+		if intent.Body == "" {
+			return mergeError(base, envelope.ErrEmptyEditBody, "No updated task title provided.")
+		}
+		existing, err := s.GetTask(target)
+		if err != nil {
+			return envelope.Exception(err)
+		}
+		if existing == nil {
+			return mergeError(base, envelope.ErrTaskNotFound, fmt.Sprintf("Task %s not found.", target))
+		}
+		if err := s.EditTask(target, intent.Body, existing.Details); err != nil {
+			return envelope.Exception(err)
+		}
+		task, _ := s.GetTask(target)
+		base["action"] = "edit_task"
+		base["task"] = task
+		base["human_message"] = fmt.Sprintf("Edited task %s.", target)
+		return base
+
 	case "snooze_task":
 		whenText := intent.WhenText
 		if whenText == "" {

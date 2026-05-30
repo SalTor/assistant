@@ -22,6 +22,7 @@ const helpText = `Global
 In a focused panel
   a          add new item
   A          add sub-problem (problems only)
+  e          edit selected item in $EDITOR
   Enter      open detail overlay
   L          link selected note/task to a problem
   s          mark selected problem solved (problems only)

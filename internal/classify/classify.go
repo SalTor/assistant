@@ -25,6 +25,7 @@ type TaskIntent struct {
 	TaskID     string
 	WhenText   string
 	Title      string
+	Body       string
 }
 
 type ProblemIntent struct {
@@ -34,6 +35,7 @@ type ProblemIntent struct {
 	ParentID   string
 	Title      string
 	Statement  string
+	Body       string
 }
 
 var (
@@ -89,6 +91,12 @@ func ParseTask(message, taskID string) TaskIntent {
 			WhenText: timephrase.Extract(m),
 		}
 	}
+	if strings.HasPrefix(lower, "edit task:") {
+		return TaskIntent{
+			Intent: "edit_task", Confidence: 0.8, TaskID: taskID,
+			Body: strings.TrimSpace(m[len("edit task:"):]),
+		}
+	}
 	return TaskIntent{Intent: "create_task", Confidence: 0.7, Title: m}
 }
 
@@ -105,6 +113,13 @@ func ParseProblem(message, problemID, parentID string) ProblemIntent {
 
 	if problemSolveRe.MatchString(lower) {
 		return ProblemIntent{Intent: "solve_problem", Confidence: 0.85, ProblemID: problemID}
+	}
+
+	if strings.HasPrefix(lower, "edit problem:") {
+		return ProblemIntent{
+			Intent: "edit_problem", Confidence: 0.8, ProblemID: problemID,
+			Body: strings.TrimSpace(m[len("edit problem:"):]),
+		}
 	}
 
 	statement := m

@@ -83,5 +83,5 @@
       "output": {"ok": "boolean", "action": "history", "problem": "object|null", "events": "array|null"}
     }
   ],
-  "intents": ["create_problem", "list_problems", "tree_problems", "solve_problem"]
+  "intents": ["create_problem", "list_problems", "tree_problems", "solve_problem", "edit_problem"]
 }

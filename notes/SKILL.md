@@ -13,6 +13,7 @@ Use this skill to manage user notes and follow-up tracking.
 - Ask for follow-up-worthy notes.
 - Snooze/defer a note until a date/time phrase (e.g., "after q3 ends").
 - Mark a note as done.
+- Edit a note's body (`edit note: <new body>`), or press `e` on the focused note in the TUI to open it in `$EDITOR`.
 - Inspect full note history/audit trail.
 
 ## Command interface (preferred)

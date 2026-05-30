@@ -21,6 +21,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		return m, nil
 
+	case editorDoneMsg:
+		m.applyEditorResult(msg)
+		return m, nil
+
 	case tea.KeyMsg:
 		m.disarmDelete()
 		if m.add != addNone {
@@ -98,6 +102,11 @@ func (m *Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "A":
 		m.startAdd(true)
+		return m, nil
+	case "e":
+		if cmd := m.startEdit(); cmd != nil {
+			return m, cmd
+		}
 		return m, nil
 	case "enter":
 		m.openDetail()

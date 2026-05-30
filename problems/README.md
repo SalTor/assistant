@@ -21,6 +21,8 @@ assistant problems link --db ~/.local/share/assistant/problems.db --pretty --pro
 - List open problems
 - Show problem tree
 - Mark problem solved
+- Soft-delete / undelete problem
+- Edit problem title + statement (TUI: press `e` on a focused problem; opens `$EDITOR`)
 
 ## Notes
 

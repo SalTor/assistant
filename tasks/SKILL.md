@@ -13,6 +13,7 @@ Use this skill to manage project tasks and scheduling.
 - List actionable tasks.
 - Snooze/defer a task until a date/time phrase.
 - Mark a task done.
+- Edit a task title (`edit task: <new title>`), or press `e` on the focused task in the TUI to open title + details in `$EDITOR`.
 - Inspect full task history.
 
 ## Command interface (preferred)

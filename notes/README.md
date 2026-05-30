@@ -59,7 +59,7 @@ python3 notes_skill.py --db notes.db history --note-id <note_id>
 - List follow-ups
 - Snooze/postpone note
 - Mark note done
-- Edit note (`edit note: ...`)
+- Edit note (CLI: `edit note: ...`; TUI: press `e` on a focused note; opens `$EDITOR`)
 
 ## Notes on targeting
 

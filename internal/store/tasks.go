@@ -209,6 +209,52 @@ func (s *Store) SnoozeTask(id, whenText string, until time.Time) error {
 	return tx.Commit()
 }
 
+// EditTask replaces a task's title (required, non-empty) and details (nil
+// stores SQL NULL).
+func (s *Store) EditTask(id, title string, details *string) error {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return fmt.Errorf("title cannot be empty")
+	}
+	old, err := s.GetTask(id)
+	if err != nil {
+		return err
+	}
+	if old == nil {
+		return fmt.Errorf("task %s not found", id)
+	}
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if details != nil {
+		_, err = tx.Exec(`UPDATE tasks SET title = ?, details = ?, updated_at = ? WHERE id = ?`,
+			title, *details, s.nowISO(), id)
+	} else {
+		_, err = tx.Exec(`UPDATE tasks SET title = ?, details = NULL, updated_at = ? WHERE id = ?`,
+			title, s.nowISO(), id)
+	}
+	if err != nil {
+		return err
+	}
+	oldDetails := ""
+	if old.Details != nil {
+		oldDetails = *old.Details
+	}
+	newDetails := ""
+	if details != nil {
+		newDetails = *details
+	}
+	if err := s.addTaskEvent(tx, id, "edited", "Task edited", map[string]any{
+		"old_title": old.Title, "new_title": title,
+		"old_details": oldDetails, "new_details": newDetails,
+	}); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (s *Store) TaskEvents(id string) ([]model.Event, error) {
 	rows, err := s.DB.Query(
 		`SELECT id, event_type, event_text, payload_json, created_at

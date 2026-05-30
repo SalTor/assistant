@@ -52,5 +52,5 @@
       "output": {"ok": "boolean", "action": "history", "task": "object|null", "events": "array|null"}
     }
   ],
-  "intents": ["create_task", "list_tasks", "snooze_task", "complete_task"]
+  "intents": ["create_task", "list_tasks", "snooze_task", "complete_task", "edit_task"]
 }

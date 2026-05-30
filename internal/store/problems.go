@@ -67,9 +67,9 @@ func (s *Store) addProblemEvent(tx *sql.Tx, problemID, eventType, eventText stri
 	return err
 }
 
-// titleFromStatement derives a problem title from its statement: first 10
+// TitleFromStatement derives a problem title from its statement: first 10
 // words, with "…" appended if the statement is longer.
-func titleFromStatement(statement string) string {
+func TitleFromStatement(statement string) string {
 	statement = strings.TrimSpace(statement)
 	if statement == "" {
 		return "Untitled problem"
@@ -85,7 +85,7 @@ func (s *Store) CreateProblem(statement string, parentID *string) (*model.Proble
 	statement = strings.TrimSpace(statement)
 	id := uuid.NewString()
 	ts := s.nowISO()
-	title := titleFromStatement(statement)
+	title := TitleFromStatement(statement)
 
 	tx, err := s.DB.Begin()
 	if err != nil {
@@ -216,6 +216,38 @@ func (s *Store) TreeProblems() ([]model.ProblemTreeRow, error) {
 	}
 	walk(rootKey, 0)
 	return out, nil
+}
+
+// EditProblem replaces a problem's title (required, non-empty) and statement.
+func (s *Store) EditProblem(id, title, statement string) error {
+	title = strings.TrimSpace(title)
+	statement = strings.TrimSpace(statement)
+	if title == "" {
+		return fmt.Errorf("title cannot be empty")
+	}
+	old, err := s.GetProblem(id)
+	if err != nil {
+		return err
+	}
+	if old == nil {
+		return fmt.Errorf("problem %s not found", id)
+	}
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`UPDATE problems SET title = ?, statement = ?, updated_at = ? WHERE id = ?`,
+		title, statement, s.nowISO(), id); err != nil {
+		return err
+	}
+	if err := s.addProblemEvent(tx, id, "edited", "Problem edited", map[string]any{
+		"old_title": old.Title, "new_title": title,
+		"old_statement": old.Statement, "new_statement": statement,
+	}); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Store) SolveProblem(id, source string) error {

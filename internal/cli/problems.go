@@ -461,6 +461,20 @@ func InvokeProblems(s *store.Store, message, problemID, parentProblemID string) 
 		base["problem"] = p
 		base["human_message"] = fmt.Sprintf("Marked problem %s solved.", target)
 		return base
+
+	case "edit_problem":
+		if intent.Body == "" {
+			return mergeError(base, envelope.ErrEmptyEditBody, "No updated problem statement provided.")
+		}
+		title := store.TitleFromStatement(intent.Body)
+		if err := s.EditProblem(target, title, intent.Body); err != nil {
+			return envelope.Exception(err)
+		}
+		p, _ := s.GetProblem(target)
+		base["action"] = "edit_problem"
+		base["problem"] = p
+		base["human_message"] = fmt.Sprintf("Edited problem %s.", target)
+		return base
 	}
 
 	return mergeError(base, envelope.ErrUnknownIntent, "Could not determine intent.")

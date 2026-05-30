@@ -13,6 +13,7 @@ Use this skill to frame work as nested problems.
 - Add nested sub-problems.
 - List open problems or view a full problem tree.
 - Mark a problem solved.
+- Edit a problem's statement (`edit problem: <new statement>`), or press `e` on the focused problem in the TUI to open title + statement in `$EDITOR`. The CLI form re-derives the title from the new statement.
 - Inspect full problem history.
 
 ## Command interface (preferred)
