@@ -50,6 +50,16 @@ const (
 // relations are still permitted but appear after these in the picker.
 var firstClassRelations = []string{"addresses", "evidence", "critique", "depends_on"}
 
+// backupIdleDelay is how long after the last edit/interaction the deferred
+// backup fires. The Python reference had no analogue — this matches the spec
+// in the user request.
+const backupIdleDelay = 2 * time.Minute
+
+// backupTickInterval is how often the model checks whether the idle deadline
+// has passed. Small enough that the user perceives the backup as prompt,
+// large enough not to wake the runtime constantly.
+const backupTickInterval = 10 * time.Second
+
 // Model is the Bubble Tea model: every piece of state the TUI mutates.
 type Model struct {
 	notesStore    *store.Store
@@ -59,6 +69,13 @@ type Model struct {
 	focus   panel
 	overlay overlay
 	add     addMode
+
+	// Backup state. backupDir is empty when no destination is configured, in
+	// which case all backup logic is short-circuited.
+	backupDir      string
+	backupPending  bool      // an edit has occurred since the last backup
+	backupDeadline time.Time // when the idle timer expires; zero if no pending edit
+	backingUp      bool      // a backup goroutine is currently running
 
 	notes    []model.Note
 	tasks    []model.Task
@@ -99,13 +116,14 @@ type Model struct {
 }
 
 // NewModel wires up the three stores. Stores are owned by the model and
-// closed when Run() returns.
-func NewModel(notes, tasks, problems *store.Store) *Model {
+// closed when Run() returns. Pass backupDir = "" to disable the backup loop.
+func NewModel(notes, tasks, problems *store.Store, backupDir string) *Model {
 	return &Model{
 		notesStore:    notes,
 		tasksStore:    tasks,
 		problemsStore: problems,
 		focus:         panelDashboard,
+		backupDir:     backupDir,
 	}
 }
 

@@ -13,13 +13,15 @@ import (
 
 func main() {
 	fs := flag.NewFlagSet("assistant-tui", flag.ContinueOnError)
-	var notesDB, tasksDB, problemsDB, tz string
+	var notesDB, tasksDB, problemsDB, tz, backupDir string
 	var dumpView bool
 	var dumpW, dumpH int
 	fs.StringVar(&notesDB, "db-notes", "", "Override notes DB path")
 	fs.StringVar(&tasksDB, "db-tasks", "", "Override tasks DB path")
 	fs.StringVar(&problemsDB, "db-problems", "", "Override problems DB path")
 	fs.StringVar(&tz, "tz", "", "IANA timezone (defaults to system local)")
+	fs.StringVar(&backupDir, "backup-dir", os.Getenv("ASSISTANT_BACKUP_DIR"),
+		"Directory for timestamped DB backups; flag wins over $ASSISTANT_BACKUP_DIR, empty disables")
 	fs.BoolVar(&dumpView, "dump-view", false, "Print one render of the View() with synthetic window size, then exit (debug)")
 	fs.IntVar(&dumpW, "dump-w", 120, "Width to use with --dump-view")
 	fs.IntVar(&dumpH, "dump-h", 28, "Height to use with --dump-view")
@@ -35,7 +37,7 @@ func main() {
 		return
 	}
 
-	if err := tui.Run(notesDB, tasksDB, problemsDB, tz); err != nil {
+	if err := tui.Run(notesDB, tasksDB, problemsDB, tz, backupDir); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

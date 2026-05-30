@@ -86,6 +86,7 @@ func (m *Model) recordOp(action, domain, itemID, detail string) {
 	}
 	m.opLog = append([]operationlog.Entry{entry}, m.opLog...)
 	m.opLogIdx = 0
+	m.markEdit()
 }
 
 // addCurrent submits whatever is in the input buffer to the active domain

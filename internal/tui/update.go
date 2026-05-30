@@ -7,8 +7,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// Init is required by tea.Model; we have no startup-side commands.
-func (m *Model) Init() tea.Cmd { return nil }
+// Init starts the periodic backup tick when a destination is configured.
+// Otherwise the runtime has nothing to do on launch.
+func (m *Model) Init() tea.Cmd { return m.backupTickCmd() }
 
 // Update is the central dispatch point. Order:
 //   1. Window resize is always processed (so layouts adapt under overlays).
@@ -25,7 +26,26 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applyEditorResult(msg)
 		return m, nil
 
+	case backupTickMsg:
+		cmd := m.maybeStartBackup()
+		next := m.backupTickCmd()
+		if cmd != nil {
+			return m, tea.Batch(cmd, next)
+		}
+		return m, next
+
+	case backupDoneMsg:
+		m.backingUp = false
+		if msg.err != nil {
+			m.setStatus("Backup failed: "+msg.err.Error(), false)
+		} else {
+			m.backupPending = false
+			m.setStatus("Backup saved to "+msg.dest, true)
+		}
+		return m, nil
+
 	case tea.KeyMsg:
+		m.resetIdleTimer()
 		m.disarmDelete()
 		if m.add != addNone {
 			return m.updateAddMode(msg)
@@ -54,6 +74,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c":
+		if m.backupPending && m.backupDir != "" && !m.backingUp {
+			if dest, err := m.runBackupSync(); err != nil {
+				m.setStatus("Backup failed: "+err.Error(), false)
+			} else {
+				m.setStatus("Backup saved to "+dest, true)
+			}
+		}
 		return m, tea.Quit
 	case "?":
 		m.overlay = overlayHelp
