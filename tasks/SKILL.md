@@ -21,7 +21,7 @@ Use this skill to manage project tasks and scheduling.
 assistant tasks <command> [args]
 ```
 
-Underlying runner: `tasks/skill_runner.py`.
+Underlying runner: the Go CLI in `internal/cli/tasks.go`.
 
 ## Commands
 

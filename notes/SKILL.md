@@ -23,7 +23,7 @@ Use the unified router from repo root:
 assistant notes <command> [args]
 ```
 
-Underlying runner: `notes/skill_runner.py` (JSON output contract).
+Underlying runner: the Go CLI in `internal/cli/notes.go` (JSON output contract).
 
 ## Commands
 

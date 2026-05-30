@@ -2,8 +2,8 @@
   "name": "project_manager_skill",
   "version": "0.1.0",
   "description": "Reviews JJ stack work and binds progress to problems via machine-readable trailers.",
-  "entrypoint": "skill_runner.py",
-  "language": "python",
+  "entrypoint": "assistant project_manager",
+  "language": "go",
   "commands": [
     {
       "name": "review",

@@ -2,8 +2,8 @@
   "name": "notes_skill",
   "version": "0.1.0",
   "description": "Local notes and follow-up management skill with SQLite persistence and event history.",
-  "entrypoint": "skill_runner.py",
-  "language": "python",
+  "entrypoint": "assistant notes",
+  "language": "go",
   "commands": [
     {
       "name": "init",

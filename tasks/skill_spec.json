@@ -2,8 +2,8 @@
   "name": "tasks_skill",
   "version": "0.1.0",
   "description": "Local task management skill with SQLite persistence and event history.",
-  "entrypoint": "skill_runner.py",
-  "language": "python",
+  "entrypoint": "assistant tasks",
+  "language": "go",
   "commands": [
     {
       "name": "init",

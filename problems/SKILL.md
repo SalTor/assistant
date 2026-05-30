@@ -21,7 +21,7 @@ Use this skill to frame work as nested problems.
 assistant problems <command> [args]
 ```
 
-Underlying runner: `problems/skill_runner.py`.
+Underlying runner: the Go CLI in `internal/cli/problems.go`.
 
 ## Commands
 

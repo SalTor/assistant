@@ -29,3 +29,5 @@
 /problems/*.pyc
 /project_manager/__pycache__/
 /project_manager/*.pyc
+
+bin

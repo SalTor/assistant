@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-exec python3 "$(dirname "$0")/assistant_tui.py" "$@"
+here="$(cd "$(dirname "$0")" && pwd)"
+exec "$here/bin/assistant-tui" "$@"

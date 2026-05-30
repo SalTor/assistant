@@ -2,8 +2,8 @@
   "name": "problems_skill",
   "version": "0.1.0",
   "description": "Local nested problem management skill with SQLite persistence and event history.",
-  "entrypoint": "skill_runner.py",
-  "language": "python",
+  "entrypoint": "assistant problems",
+  "language": "go",
   "commands": [
     {
       "name": "init",
